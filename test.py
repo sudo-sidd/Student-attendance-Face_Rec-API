@@ -1,87 +1,100 @@
-import os
-import cv2
-import numpy as np
-from typing import List
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import Response
-from fastapi.middleware.cors import CORSMiddleware
-from face_rec import recognize_faces, BASE_GALLERY_DIR
-import base64
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
-from io import BytesIO
+import requests
+import json
 
-# Base directory
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# FastAPI app setup
-app = FastAPI(
-    title="Face Recognition API",
-    description="API for recognizing faces in uploaded images"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.post("/recognize", summary="Recognize faces and return both the annotated image and detection results")
-async def recognize_image(
-    image: UploadFile = File(...),
-    dept_id: List[str] = Form(...),
-    year: List[str] = Form(...),
-    section_students: List[str] = Form(...),
-):
-    """Recognize faces in an uploaded image and return both the base64-encoded image and detection results"""
-    if len(dept_id) != len(year):
-        raise HTTPException(status_code=400, detail="dept_id and year lists must be of equal length")
-
-    contents = await image.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+def test_face_recognition_api():
+    # API endpoint
+    url = "http://localhost:8000/recognize"
     
-    if img is None:
-        raise HTTPException(status_code=400, detail="Invalid image file")
+    # Prepare the data
+    files = {
+        'image': ('test_image.jpg', open('/home/spidey/Downloads/WhatsApp Image 2025-06-24 at 10.20.16 AM.jpeg', 'rb'), 'image/jpeg')
+    }
     
-    # Example: build gallery paths based on dept_id and year
-    gallery_paths = []
-    for d, y in zip(dept_id, year):
-        gallery_name = f"{d}_{y}.pth"
-        gallery_path = os.path.join(BASE_GALLERY_DIR, gallery_name)
-        if os.path.exists(gallery_path): 
-            gallery_paths.append(gallery_path)
-
-    if not gallery_paths:
-        raise HTTPException(status_code=400, detail="No valid galleries found")
-
-    result_img, faces = recognize_faces(img, gallery_paths=gallery_paths)
-    cv2.imwrite("outputs/result.jpg", result_img)
-    # Encode the result image to base64
-    _, buffer = cv2.imencode('.jpg', result_img)
-    base64_img = base64.b64encode(buffer).decode('utf-8')
-
-    # Prepare face recognition results
-    serializable_faces = []
-    for face in faces:
-        serializable_face = {
-            "identity": face["identity"],
-            "similarity": float(face["similarity"]),
-            "bounding_box": [int(x) for x in face["bounding_box"]]
-        }
-        serializable_faces.append(serializable_face)
+    data = {
+        'dept_id': ['101'],  # Multiple departments
+        'year': ['2'],  # Corresponding years
+        'section_students': ['714023247088', '714023247081', '714023247079', '714023247080', '714023247090']  # Student IDs
+    }
     
-    # Return both the image and results in a single JSON response
-    return JSONResponse(content={
-        "count": len(serializable_faces),
-        "image_base64": base64_img,
-        "faces": serializable_faces,
-    })
+    try:
+        # Make the POST request
+        response = requests.post(url, files=files, data=data)
+        
+        # Check if request was successful
+        if response.status_code == 200:
+            result = response.json()
+            
+            print("✅ Request successful!")
+            print(f"📊 Students in section: {result['Students']}")
+            print(f"👥 Detected students: {result['Detected Students']}")
+            print(f"🔢 Total faces detected: {result['count']}")
+            print(f"📷 Image returned: {'Yes' if result['image_base64'] else 'No'}")
+            
+            # Print detailed face detection results
+            print("\n🎯 Face Detection Details:")
+            for i, face in enumerate(result['faces']):
+                print(f"  Face {i+1}: {face['identity']} (similarity: {face['similarity']:.3f})")
+                print(f"    Bounding box: {face['bounding_box']}")
+            
+            # Optional: Save the annotated image
+            if result['image_base64']:
+                import base64
+                img_data = base64.b64decode(result['image_base64'])
+                with open('annotated_result.jpg', 'wb') as f:
+                    f.write(img_data)
+                print("\n💾 Annotated image saved as 'annotated_result.jpg'")
+                
+        else:
+            print(f"❌ Request failed with status code: {response.status_code}")
+            print(f"Error: {response.text}")
+            
+    except requests.exceptions.ConnectionError:
+        print("❌ Connection error. Make sure the server is running on localhost:5564")
+    except FileNotFoundError:
+        print("❌ Test image file not found. Please update the file path.")
+    except Exception as e:
+        print(f"❌ An error occurred: {e}")
+    finally:
+        # Close the file
+        if 'files' in locals():
+            files['image'][1].close()
+
+    """Test with a single department/year"""
+    url = "http://localhost:5564/recognize"
+    
+    files = {
+        'image': ('test_image.jpg', open('path/to/your/test_image.jpg', 'rb'), 'image/jpeg')
+    }
+    
+    data = {
+        'dept_id': ['CSE'],
+        'year': ['2023'],
+        'section_students': ['student123', 'student456', 'student789']
+    }
+    
+    try:
+        response = requests.post(url, files=files, data=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✅ Single department test successful!")
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"❌ Test failed: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+    finally:
+        files['image'][1].close()
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5564)
+    print("🚀 Testing Face Recognition API...\n")
+    
+    # Update this path to your actual test image
+    # test_image_path = "path/to/your/test_image.jpg"
+    
+    # Test 1: Multiple departments
+    print("=== Test 1: Departments ===")
+    test_face_recognition_api()
+    
+    print("\n" + "="*50 + "\n")
