@@ -33,9 +33,14 @@ app.add_middleware(
 @app.post("/recognize", summary="Recognize faces and return both the annotated image and detection results")
 async def recognize_image(
     image: UploadFile = File(...),
-    galleries: List[str] = Form(...),
+    dept_id: List[str] = Form(...),
+    year: List[str] = Form(...),
+    section_students: List[str] = Form(...),
 ):
     """Recognize faces in an uploaded image and return both the base64-encoded image and detection results"""
+    if len(dept_id) != len(year):
+        raise HTTPException(status_code=400, detail="dept_id and year lists must be of equal length")
+
     contents = await image.read()
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -43,11 +48,13 @@ async def recognize_image(
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid image file")
     
-    gallery_paths = [
-        os.path.join(BASE_GALLERY_DIR, g)
-        for g in galleries
-        if g.startswith('gallery_') and g.endswith('.pth') and os.path.exists(os.path.join(BASE_GALLERY_DIR, g))
-    ]
+    # Example: build gallery paths based on dept_id and year
+    gallery_paths = []
+    for d, y in zip(dept_id, year):
+        gallery_name = f"{d}_{y}.pth"
+        gallery_path = os.path.join(BASE_GALLERY_DIR, gallery_name)
+        if os.path.exists(gallery_path): 
+            gallery_paths.append(gallery_path)
 
     if not gallery_paths:
         raise HTTPException(status_code=400, detail="No valid galleries found")
@@ -70,9 +77,9 @@ async def recognize_image(
     
     # Return both the image and results in a single JSON response
     return JSONResponse(content={
+        "count": len(serializable_faces),
         "image_base64": base64_img,
         "faces": serializable_faces,
-        "count": len(serializable_faces)
     })
 
 if __name__ == "__main__":

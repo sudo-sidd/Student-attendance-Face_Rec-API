@@ -24,7 +24,7 @@ os.makedirs(BASE_GALLERY_DIR, exist_ok=True)
 
 def get_gallery_path(year: str, department: str) -> str:
     """Generate a standardized gallery path based on batch year and department"""
-    filename = f"gallery_{department}_{year}.pth"
+    filename = f"{department}_{year}.pth"
     return os.path.join(BASE_GALLERY_DIR, filename)
 
 def get_data_path(year: str, department: str) -> str:
@@ -241,7 +241,7 @@ def process_videos_directory(videos_dir: str, year: str, department: str) -> Dic
                 embeddings = [extract_embedding(face_path, model) for face_path in student_faces]
                 student_embeddings[student_name] = np.mean(embeddings, axis=0)
             
-            processed_videos += 1
+            processed_videos += 1 
             
         except Exception as e:
             print(f"Error processing video {filename}: {e}")
@@ -301,11 +301,13 @@ def recognize_faces(
     threshold: float = 0.45,
     model=None,
     device=None,
-    yolo_model=None
+    yolo_model=None,
+    allowed_students: Optional[List[str]] = None
 ) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
     """
     Recognize faces in a given frame using one or more galleries.
     Implements a no-duplicate rule where each identity appears only once.
+    Only considers students from the allowed_students list if provided.
     
     Args:
         frame: Input image (numpy array in BGR format from cv2)
@@ -316,6 +318,7 @@ def recognize_faces(
         model: Pre-loaded model (optional)
         device: Pre-loaded device (optional)
         yolo_model: Pre-loaded YOLO model (optional)
+        allowed_students: List of student IDs to consider (optional)
         
     Returns:
         Tuple containing:
@@ -385,37 +388,63 @@ def recognize_faces(
                 _, embedding = model(face_tensor)
                 face_embedding = embedding.cpu().squeeze().numpy()
             
-            matches = []
+            # First, get ALL matches above threshold (regardless of allowed_students filter)
+            all_matches = []
+            allowed_matches = []
+            
             for identity, gallery_embedding in combined_gallery.items():
                 similarity = 1 - cosine(face_embedding, gallery_embedding)
                 if similarity >= threshold:
-                    matches.append((identity, similarity))
+                    all_matches.append((identity, similarity))
+                    
+                    # Also track which ones are in the allowed list
+                    if allowed_students is None or identity in allowed_students:
+                        allowed_matches.append((identity, similarity))
             
-            matches.sort(key=lambda x: x[1], reverse=True)
+            # Sort both lists by similarity (highest first)
+            all_matches.sort(key=lambda x: x[1], reverse=True)
+            allowed_matches.sort(key=lambda x: x[1], reverse=True)
             
             face_detections.append({
                 "bbox": (x1, y1, x2, y2),
-                "matches": matches,
+                "allowed_matches": allowed_matches,
+                "all_matches": all_matches,
                 "embedding": face_embedding
             })
     
-    face_detections.sort(key=lambda x: x["matches"][0][1] if x["matches"] else 0, reverse=True)
+    # Sort face detections by best allowed match score (highest first)
+    # If no allowed matches, sort by best overall match
+    face_detections.sort(key=lambda x: (
+        x["allowed_matches"][0][1] if x["allowed_matches"] else 
+        (x["all_matches"][0][1] if x["all_matches"] else 0)
+    ), reverse=True)
     
     assigned_identities = set()
     detected_faces = []
     
     for face in face_detections:
         x1, y1, x2, y2 = face["bbox"]
-        matches = face["matches"]
+        allowed_matches = face["allowed_matches"]
+        all_matches = face["all_matches"]
         
         best_match = None
         best_score = 0.0
         
-        for identity, score in matches:
+        # First, try to find the best available match from allowed students
+        for identity, score in allowed_matches:
             if identity not in assigned_identities:
                 best_match = identity
                 best_score = float(score)
                 break
+        
+        # If no allowed match is available, try fallback to all matches
+        # (only if allowed_students filter is active and no allowed match was found)
+        if best_match is None and allowed_students is not None:
+            for identity, score in all_matches:
+                if identity not in assigned_identities and identity not in allowed_students:
+                    # This would be a fallback match (not in allowed list)
+                    # For now, we'll mark as unknown since user specifically wants only allowed students
+                    pass
         
         if best_match:
             detected_faces.append({
@@ -425,6 +454,7 @@ def recognize_faces(
             })
             assigned_identities.add(best_match)
         else:
+            # No available match found (either no matches above threshold or all are already assigned)
             detected_faces.append({
                 "identity": "Unknown",
                 "similarity": 0.0,
@@ -461,5 +491,52 @@ def recognize_faces(
                    0.5, (255, 255, 255), 2)
     
     return result_img, detected_faces
+
+# def recognize_faces_with_student_list(
+#     frame: np.ndarray,
+#     gallery_paths: Union[str, List[str]],
+#     allowed_students: List[str],
+#     model_path: str = DEFAULT_MODEL_PATH,
+#     yolo_path: str = DEFAULT_YOLO_PATH,
+#     threshold: float = 0.45,
+#     model=None,
+#     device=None,
+#     yolo_model=None
+# ) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+#     """
+#     Convenience function to recognize faces with a specific list of allowed students.
+    
+#     This function ensures that:
+#     1. Only students from the allowed_students list are recognized
+#     2. No duplicate assignments occur (each student appears only once)
+#     3. The best confidence match is chosen for each face among available students
+    
+#     Args:
+#         frame: Input image (numpy array in BGR format from cv2)
+#         gallery_paths: Single gallery path or list of gallery paths
+#         allowed_students: List of student IDs that are allowed to be recognized
+#         model_path: Path to LightCNN model
+#         yolo_path: Path to YOLO face detection model
+#         threshold: Minimum similarity threshold (0-1)
+#         model: Pre-loaded model (optional)
+#         device: Pre-loaded device (optional)
+#         yolo_model: Pre-loaded YOLO model (optional)
+        
+#     Returns:
+#         Tuple containing:
+#             - Annotated frame with bounding boxes and labels
+#             - List of recognized identities with details
+#     """
+#     return recognize_faces(
+#         frame=frame,
+#         gallery_paths=gallery_paths,
+#         model_path=model_path,
+#         yolo_path=yolo_path,
+#         threshold=threshold,
+#         model=model,
+#         device=device,
+#         yolo_model=yolo_model,
+#         allowed_students=allowed_students
+#     )
 
 
