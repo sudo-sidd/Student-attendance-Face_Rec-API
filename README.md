@@ -51,8 +51,7 @@ face_final/
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
-   cd face_final
+   git clone https://github.com/sudo-sidd/Student-attendance-Face_Rec-API.git
    ```
 2. **Create and activate a Python environment**
 
@@ -91,7 +90,7 @@ If you encounter issues with numpy or other dependencies:
 
 ```bash
 # For Python 3.12+ compatibility issues
-pip install numpy>=1.25.0
+pip install numpy
 pip install --upgrade setuptools wheel
 
 # For CUDA-related issues
@@ -218,22 +217,7 @@ Run the test suite:
 python test.py
 ```
 
-### Manual Testing
-
-Test individual components:
-
-```bash
-# Test face detection
-python -c "from yolo.face_detec import detect_faces; print('Face detection working')"
-
-# Test feature extraction
-python -c "from LightCNN.extract_features import extract; print('Feature extraction working')"
-
-# Test gallery operations
-python -c "from gallery_manager import GalleryManager; gm = GalleryManager(); print('Gallery manager working')"
-```
-
-## Performance Optimization
+### Performance Optimization
 
 ### GPU Acceleration
 
