@@ -1,260 +1,142 @@
-# Face Recognition System
+# Face Recognition API
 
-A comprehensive face recognition system built with FastAPI, featuring face detection, recognition, and gallery management capabilities. The system uses YOLO for face detection and LightCNN for feature extraction to provide accurate and efficient face recognition.
+A simple face recognition API built with FastAPI and LightCNN for accurate face detection and recognition.
 
 ## Features
 
-- **Face Detection**: YOLO-based face detection with high accuracy
-- **Face Recognition**: Deep learning-based face recognition using LightCNN
-- **Gallery Management**: Create and manage multiple face galleries
-- **RESTful API**: FastAPI-based web service with interactive documentation
-- **Real-time Processing**: Efficient face recognition with optimized models
-- **Multiple Format Support**: Supports various image formats (JPEG, PNG, etc.)
+- **Face Detection**: YOLO-based face detection
+- **Face Recognition**: LightCNN feature extraction for face recognition
+- **RESTful API**: Simple FastAPI web service
+- **Gallery System**: Load pre-built face galleries for recognition
 
-## Project Structure
+## Quick Start
 
-```
-face_final/
-├── api.py                          # FastAPI web service
-├── face_rec.py                     # Core face recognition module
-├── gallery_manager.py              # Gallery management utilities
-├── test.py                         # Test scripts
-├── requirements.txt                # Python dependencies
-├── checkpoints/                    # Model checkpoints
-│   └── LightCNN_29Layers_V2_checkpoint.pth.tar
-├── gallery/                        # Face galleries storage
-│   ├── data/                       # Raw gallery data
-│   └── galleries/                  # Processed gallery features
-├── LightCNN/                       # LightCNN model implementation
-│   ├── extract_features.py         # Feature extraction utilities
-│   ├── light_cnn_v4.py            # LightCNN v4 model
-│   ├── light_cnn.py               # Base LightCNN model
-│   ├── load_imglist.py            # Image loading utilities
-│   └── train.py                   # Training scripts
-├── outputs/                        # Output images and results
-└── yolo/                          # YOLO face detection
-    ├── face_detec.py              # Face detection module
-    └── weights/                   # YOLO model weights
-        └── yolo11n-face.pt
-```
-
-## Installation
-
-### Prerequisites
-
-- Python 3.8+ (recommended: Python 3.10 or 3.11)
-- CUDA-capable GPU (optional, for faster processing)
-- Git
-
-### Setup Instructions
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/sudo-sidd/Student-attendance-Face_Rec-API.git
-   ```
-2. **Create and activate a Python environment**
-
-   ```bash
-   # Using conda (recommended)
-   conda create -n face-rec python=3.10
-   conda activate face-rec
-
-   # Or using venv
-   python -m venv face-rec
-   source face-rec/bin/activate  # On Linux/Mac
-   # face-rec\Scripts\activate  # On Windows
-   ```
-3. **Install dependencies**
-
-   ```bash
-   pip install --upgrade pip setuptools
-   pip install -r requirements.txt
-   ```
-4. **Download model checkpoints**
-
-   ```bash
-   mkdir -p checkpoints
-   cd checkpoints
-
-   # Download LightCNN checkpoint (replace with actual download link)
-   wget "https://drive.google.com/open?id=1Jn6aXtQ84WY-7J3Tpr2_j6sX0ch9yucS"
-   # Or manually download and place the file in checkpoints/
-
-   cd ..
-   ```
-
-### Troubleshooting Installation
-
-If you encounter issues with numpy or other dependencies:
+### 1. Install Dependencies
 
 ```bash
-# For Python 3.12+ compatibility issues
-pip install numpy
-pip install --upgrade setuptools wheel
-
-# For CUDA-related issues
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install -r requirements.txt
 ```
 
-## Usage
+### 2. Download Model Checkpoints
 
-### Starting the API Server
+```bash
+mkdir -p checkpoints
+# Download LightCNN checkpoint to checkpoints/LightCNN_29Layers_V2_checkpoint.pth.tar
+# The YOLO model will be downloaded automatically on first use
+```
+
+### 3. Prepare Face Gallery
+
+Create a face gallery from a directory of face images:
+
+```bash
+python gallery_manager.py --model_path checkpoints/LightCNN_29Layers_V2_checkpoint.pth.tar \
+                         --data_dir /path/to/face/images \
+                         --output_path gallery/galleries/my_gallery.pth
+```
+
+Directory structure for face images:
+```
+face_images/
+├── person1/
+│   ├── face1.jpg
+│   └── face2.jpg
+├── person2/
+│   └── face1.jpg
+└── person3/
+    ├── face1.jpg
+    ├── face2.jpg
+    └── face3.jpg
+```
+
+### 4. Start the API Server
 
 ```bash
 python api.py
 ```
 
-The API will be available at:
+The API will be available at: http://localhost:8000
 
-- **Main endpoint**: http://localhost:8000
-- **Interactive documentation**: http://localhost:8000/docs
-- **Alternative docs**: http://localhost:8000/redoc
+## API Usage
 
-### API Endpoints
+### Recognize Faces
 
-#### 1. Health Check
+**POST** `/recognize`
 
-```http
-GET /
+- **image**: Image file (multipart/form-data)
+- **gallery_name**: Name of the gallery to use (default: "default")
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/recognize" \
+     -F "image=@test_image.jpg" \
+     -F "gallery_name=my_gallery"
 ```
-
-Returns server status and basic information.
-
-#### 2. Face Recognition
-
-```http
-POST /recognize
-```
-
-**Parameters:**
-
-- `image`: Image file (multipart/form-data)
-- `gallery_id`: Gallery ID to search against
 
 **Response:**
-
 ```json
 {
   "success": true,
-  "matches": [
+  "faces_detected": 2,
+  "faces": [
     {
-      "person_id": "person_001",
-      "confidence": 0.95,
-      "similarity": 0.87
+      "identity": "person1",
+      "confidence": 0.87,
+      "bounding_box": [100, 150, 200, 250]
+    },
+    {
+      "identity": "Unknown",
+      "confidence": 0.0,
+      "bounding_box": [300, 100, 400, 200]
     }
-  ],
-  "processing_time": 0.234
+  ]
 }
 ```
 
-#### 3. Gallery Management
+### Health Check
 
-```http
-POST /gallery/create
-PUT /gallery/{gallery_id}/add
-GET /gallery/{gallery_id}/list
-DELETE /gallery/{gallery_id}
-```
+**GET** `/`
 
-### Python Module Usage
-
-```python
-from face_rec import FaceRecognizer
-from gallery_manager import GalleryManager
-
-# Initialize components
-recognizer = FaceRecognizer()
-gallery_manager = GalleryManager()
-
-# Create a new gallery
-gallery_manager.create_gallery("my_gallery")
-
-# Add faces to gallery
-gallery_manager.add_face("my_gallery", "person_001", "path/to/image.jpg")
-
-# Recognize faces
-results = recognizer.recognize("path/to/test_image.jpg", "my_gallery")
-print(f"Recognition results: {results}")
-```
-
-## Configuration
-
-### Model Configuration
-
-Edit the model parameters in `face_rec.py`:
-
-```python
-# Face detection settings
-DETECTION_CONFIDENCE = 0.5
-DETECTION_NMS_THRESHOLD = 0.4
-
-# Recognition settings
-RECOGNITION_THRESHOLD = 0.6
-MAX_FACES_PER_IMAGE = 10
-```
-
-### API Configuration
-
-Modify `api.py` for server settings:
-
-```python
-# Server configuration
-HOST = "0.0.0.0"
-PORT = 8000
-DEBUG = False
-
-# File upload limits
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
-```
+Returns API status.
 
 ## Testing
 
-Run the test suite:
+Run the test script:
 
 ```bash
 python test.py
 ```
 
-### Performance Optimization
+Make sure to place a test image named `test_image.jpg` in the project directory.
 
-### GPU Acceleration
+## Project Structure
 
-Ensure CUDA is properly installed:
-
-```bash
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
-
-### Memory Optimization
-
-For large galleries or limited memory:
-
-1. Enable batch processing in `face_rec.py`
-2. Adjust `MAX_FACES_PER_IMAGE` parameter
-3. Use image preprocessing to reduce file sizes
+face_final/
+├── api.py                  # FastAPI web service
+├── face_rec.py            # Core face recognition module
+├── gallery_manager.py     # Gallery creation utilities
+├── test.py               # Test script
+├── requirements.txt      # Dependencies
+├── checkpoints/          # Model checkpoints
+├── gallery/
+│   └── galleries/        # Face galleries (.pth files)
+├── outputs/              # Output images
+└── yolo/
+    └── weights/          # YOLO model weights
+```
 
 ## Dependencies
 
-- **FastAPI**: Web framework for building APIs
-- **Uvicorn**: ASGI server for FastAPI
-- **OpenCV**: Computer vision library
-- **NumPy**: Numerical computing
+- **FastAPI**: Web framework
+- **Uvicorn**: ASGI server
+- **OpenCV**: Computer vision
 - **PyTorch**: Deep learning framework
 - **Ultralytics**: YOLO implementation
-- **Pillow**: Image processing library
+- **Pillow**: Image processing
+- **SciPy**: Scientific computing
+- **NumPy**: Numerical computing
 
-## Model Information
+## License
 
-### YOLO Face Detection
-
-- **Model**: YOLOv11n-face
-- **Input size**: 640x640
-- **Performance**: ~100 FPS on modern GPUs
-
-### LightCNN Feature Extraction
-
-- **Architecture**: 29-layer LightCNN
-- **Feature dimension**: 256
-- **Training dataset**: Large-scale face datasets
+MIT License

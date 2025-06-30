@@ -1,19 +1,28 @@
 import requests
 import json
+import os
 
 def test_face_recognition_api():
+    """Simple test for the face recognition API"""
+    
     # API endpoint
     url = "http://localhost:8000/recognize"
     
-    # Prepare the data
+    # Test image path - replace with your test image
+    test_image_path = "test_image.jpg"  # Put your test image here
+    
+    if not os.path.exists(test_image_path):
+        print(f"❌ Test image not found: {test_image_path}")
+        print("Please place a test image named 'test_image.jpg' in the current directory")
+        return
+    
+    # Prepare the request
     files = {
-        'image': ('test_image.jpg', open('/home/spidey/Downloads/WhatsApp Image 2025-06-24 at 10.20.16 AM.jpeg', 'rb'), 'image/jpeg')
+        'image': ('test_image.jpg', open(test_image_path, 'rb'), 'image/jpeg')
     }
     
     data = {
-        'dept_id': ['101'],  # Multiple departments
-        'year': ['2'],  # Corresponding years
-        'section_students': ['714023247088', '714023247081', '714023247079', '714023247080', '714023247090']  # Student IDs
+        'gallery_name': 'default'  # Use your gallery name
     }
     
     try:
@@ -25,76 +34,47 @@ def test_face_recognition_api():
             result = response.json()
             
             print("✅ Request successful!")
-            print(f"📊 Students in section: {result['Students']}")
-            print(f"👥 Detected students: {result['Detected Students']}")
-            print(f"🔢 Total faces detected: {result['count']}")
-            print(f"📷 Image returned: {'Yes' if result['image_base64'] else 'No'}")
+            print(f"📊 Success: {result['success']}")
+            print(f"👥 Faces detected: {result['faces_detected']}")
             
             # Print detailed face detection results
-            print("\n🎯 Face Detection Details:")
+            print("\n🎯 Face Recognition Results:")
             for i, face in enumerate(result['faces']):
-                print(f"  Face {i+1}: {face['identity']} (similarity: {face['similarity']:.3f})")
+                print(f"  Face {i+1}: {face['identity']} (confidence: {face['confidence']:.3f})")
                 print(f"    Bounding box: {face['bounding_box']}")
-            
-            # Optional: Save the annotated image
-            if result['image_base64']:
-                import base64
-                img_data = base64.b64decode(result['image_base64'])
-                with open('annotated_result.jpg', 'wb') as f:
-                    f.write(img_data)
-                print("\n💾 Annotated image saved as 'annotated_result.jpg'")
                 
         else:
             print(f"❌ Request failed with status code: {response.status_code}")
             print(f"Error: {response.text}")
             
     except requests.exceptions.ConnectionError:
-        print("❌ Connection error. Make sure the server is running on localhost:5564")
-    except FileNotFoundError:
-        print("❌ Test image file not found. Please update the file path.")
-    except Exception as e:
-        print(f"❌ An error occurred: {e}")
-    finally:
-        # Close the file
-        if 'files' in locals():
-            files['image'][1].close()
-
-    """Test with a single department/year"""
-    url = "http://localhost:5564/recognize"
-    
-    files = {
-        'image': ('test_image.jpg', open('path/to/your/test_image.jpg', 'rb'), 'image/jpeg')
-    }
-    
-    data = {
-        'dept_id': ['CSE'],
-        'year': ['2023'],
-        'section_students': ['student123', 'student456', 'student789']
-    }
-    
-    try:
-        response = requests.post(url, files=files, data=data)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ Single department test successful!")
-            print(json.dumps(result, indent=2))
-        else:
-            print(f"❌ Test failed: {response.status_code} - {response.text}")
-            
+        print("❌ Could not connect to API. Make sure the server is running on http://localhost:8000")
     except Exception as e:
         print(f"❌ Error: {e}")
     finally:
-        files['image'][1].close()
+        if 'files' in locals():
+            files['image'][1].close()
+
+
+def test_health_check():
+    """Test the health check endpoint"""
+    try:
+        response = requests.get("http://localhost:8000/")
+        if response.status_code == 200:
+            print("✅ Health check passed!")
+            print(f"Response: {response.json()}")
+        else:
+            print(f"❌ Health check failed: {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        print("❌ Could not connect to API. Make sure the server is running on http://localhost:8000")
+
 
 if __name__ == "__main__":
-    print("🚀 Testing Face Recognition API...\n")
+    print("🧪 Testing Face Recognition API\n")
     
-    # Update this path to your actual test image
-    # test_image_path = "path/to/your/test_image.jpg"
+    # Test health check first
+    print("1. Testing health check...")
+    test_health_check()
     
-    # Test 1: Multiple departments
-    print("=== Test 1: Departments ===")
+    print("\n2. Testing face recognition...")
     test_face_recognition_api()
-    
-    print("\n" + "="*50 + "\n")
