@@ -24,7 +24,7 @@ def recognize_faces(
     gallery_paths: Union[str, List[str]], 
     model_path: str = DEFAULT_MODEL_PATH,
     yolo_path: str = DEFAULT_YOLO_PATH,
-    threshold: float = 0.45,
+    threshold: float = 0.50,
     model=None,
     device=None,
     yolo_model=None
