@@ -19,6 +19,11 @@ pip install -r requirements.txt
 
 ### 2. Download Model Checkpoints
 
+download checkpoints file from google drive:
+```bash
+https://drive.google.com/file/d/1CUdlD83CYpiC-KedxLM9b8nG0ZAltsP4/view?usp=sharing
+```
+
 ```bash
 mkdir -p checkpoints
 # Download LightCNN checkpoint to checkpoints/LightCNN_29Layers_V2_checkpoint.pth.tar
